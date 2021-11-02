@@ -1,2 +1,2 @@
-# h2ox-data-zarr
-This repo monitors a cloud storage directory and then ingests ECMWF data and pushes it to a zarr archive.
+# h2ox-w2w
+This repo ingests WRIS data, fetches the latest meteorological data and models, and updates the results for the api.
