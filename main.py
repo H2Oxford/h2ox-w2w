@@ -112,6 +112,8 @@ def run_daily():
     enqueue_tomorrow(today)
     slackmessenger.message(f"enqueued {(today+timedelta(hours=24)).isoformat()}")
 
+    return f"Ran day {today_str}", 200
+
 
 def refresh_reservoir_levels(today):
 
