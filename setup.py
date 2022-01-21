@@ -37,9 +37,9 @@ setup(
     license="BSD-2-Clause",
     description="h2ox-w2w. Run the whole wave2web h2ox pipeline.",
     url="https://github.com/H2Oxford/h2ox-w2w.git",
-    packages=find_packages("src"),
-    package_dir={"": "src"},
-    py_modules=[splitext(basename(path))[0] for path in glob("src/*.py")],
+    packages=find_packages("h2ox"),
+    package_dir={"": "h2ox"},
+    py_modules=[splitext(basename(path))[0] for path in glob("h2ox/*.py")],
     include_package_data=True,
     zip_safe=False,
     classifiers=[
