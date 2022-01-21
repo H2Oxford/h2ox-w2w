@@ -6,8 +6,8 @@ from flask import request
 from loguru import logger
 
 
-from h2ox.reservoirs import BQClient
-from h2ox.w2w_utils import create_task, deploy_task
+from h2ox.w2w.reservoirs import BQClient
+from h2ox.w2w.w2w_utils import create_task, deploy_task
 
 """h2ox-w2w - run daily"""
 
