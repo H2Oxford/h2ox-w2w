@@ -19,6 +19,8 @@ WORKDIR $APP_HOME
 COPY . ./h2ox-w2w
 # Install GDAL dependencies
 
+RUN echo $PWD
+
 
 RUN apt-get update
 RUN apt-get install -y python3-pip
