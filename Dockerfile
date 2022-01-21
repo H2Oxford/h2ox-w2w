@@ -10,6 +10,8 @@ ENV PYTHONUNBUFFERED True
 
 ENV APP_HOME /app
 
+COPY ./main.py $APP_HOME
+
 WORKDIR $APP_HOME
 
 # Copy local code to the container image.
