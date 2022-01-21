@@ -5,5 +5,7 @@ steps:
   args: ['ls', '..', '-a']
 - name: 'bash'
   args: ['ls', '.', '-aR']
+- name: 'bash'
+  args: ['ls', '/']
 images:
 - 'gcr.io/$PROJECT_ID/h2ox-w2w'
