@@ -121,6 +121,8 @@ class BQClient:
             
             logger.info(f'Filling data for {uuid}, {n_calls} api calls')
             
+            all_data = []
+            
             for ii in tqdm(range(n_calls)):
                 
                 df, status_code = wris_client.get_reservoir_data(
@@ -139,6 +141,8 @@ class BQClient:
                 
                 if sleep is not None:
                     time.sleep(sleep)
+                    
+                all_data.append(len(df))
                 
         else:
             
@@ -158,7 +162,9 @@ class BQClient:
             # write to table
             self.push_reservoir_data(df)
             
-        return True
+            all_data = [len(df)]
+            
+        return all_data
         
     
     def update_reservoir_data(self,uuid,name,today, sleep=None):
@@ -167,13 +173,13 @@ class BQClient:
         
         if pd.isna(max_dt):
             # empty data! -> fill from start_dt
-            self.fill_period(uuid,name, self.min_dt, today, sleep)
+            filled_data = self.fill_period(uuid,name, self.min_dt, today, sleep)
             
         else:
             # some data! -> fill from most recent
-            self.fill_period(uuid,name,max_dt+datetime.timedelta(days=1), today, sleep)
+            filled_data = self.fill_period(uuid,name,max_dt+datetime.timedelta(days=1), today, sleep)
             
-        return True
+        return sum(filled_data)
 
             
 

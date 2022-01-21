@@ -1,4 +1,5 @@
 import datetime
+import logging 
 
 from flask import Flask
 from flask import request
@@ -7,6 +8,7 @@ from loguru import logger
 
 
 from h2ox.w2w.reservoirs import BQClient
+from h2ox.w2w.slackbot import SlackMessenger
 from h2ox.w2w.w2w_utils import create_task, deploy_task
 
 """h2ox-w2w - run daily"""
@@ -89,12 +91,19 @@ def run_daily():
         print(f"error: {msg}")
         return f"Bad Request: {msg}", 400
     
+    slackmessenger = SlackMessenger(
+        token=os.environ.get('SLACKBOT_TOKEN'),
+        target = os.environ.get('SLACKBOT_TARGET'),
+        name='w2w-run-daily',
+    )
+    
     today_str = payload['today']
     
     today = datetime.datetime.strptime(today_str,'%Y-%m-%d').replace(tzinfo=None)
     
     # step 1-> refresh reservoir levels
-    refresh_reservoir_levels(today)
+    filled_datapts = refresh_reservoir_levels(today)
+    messenger.message(f'added {filled_datapts} data points')
     
     # step 2-> rerun inference
     
@@ -102,6 +111,7 @@ def run_daily():
     
     # step 4 -> enqueue tomorrow
     enqueue_tomorrow(today)
+    messenger.message(f'enqueued {(today+timedelta(hours=24)).isoformat()}')
 
 
 
@@ -113,11 +123,15 @@ def refresh_reservoir_levels(today):
     uuid_df = client.get_uuids().set_index('uuid')
     
     logger.info('Updating {len(uuid_df)} uuids')
+    
+    update_data = []
     # for each uuids:
     for uuid, row in uuid_df.iterrows():
         
         # run an updating script
-        client.update_reservoir_data(uuid,row['name'],today)
+        update_data.append(client.update_reservoir_data(uuid,row['name'],today))
+        
+    return sum(update_data)
         
 def enqueue_tomorrow(today):
     
