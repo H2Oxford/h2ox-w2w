@@ -1,17 +1,19 @@
+"""h2ox-w2w - run daily"""
+
 import datetime
-import logging 
+import json
+import logging
+import os
+import sys
+import traceback
+from datetime import timedelta
 
-from flask import Flask
-from flask import request
-
+from flask import Flask, request
 from loguru import logger
-
 
 from h2ox.w2w.reservoirs import BQClient
 from h2ox.w2w.slackbot import SlackMessenger
 from h2ox.w2w.w2w_utils import create_task, deploy_task
-
-"""h2ox-w2w - run daily"""
 
 app = Flask(__name__)
 
@@ -31,27 +33,25 @@ def format_stacktrace():
     parts.extend(traceback.format_stack(limit=25)[:-2])
     parts.extend(traceback.format_exception(*sys.exc_info())[1:])
     return "".join(parts)
-    
-    
+
 
 @app.route("/", methods=["POST"])
 def run_daily():
-    
+
     """Receive a request and queue downloading ecmwf data
-    
+
     Request params:
     ---------------
-    
+
         today: str
-        
-    
+
+
     # refresh reservoir levels
     # run inference
     # post to results table
     # enqueue tomorrow's run
-    
-    """
-    """ if pubsub:
+
+    #if pubsub:
     envelope = request.get_json()
     if not envelope:
         msg = "no Pub/Sub message received"
@@ -70,91 +70,85 @@ def run_daily():
         request_json = json.loads(json_data)
 
     logger.info('request_json: '+json.dumps(request_json))
-    
+
     # parse request
     today_str = request_json['today']
 
     """
-    
+
     payload = request.get_json()
-    
+
     if not payload:
         msg = "no message received"
         print(f"error: {msg}")
         return f"Bad Request: {msg}", 400
 
-
-    logger.info('payload: '+json.dumps(payload))
+    logger.info("payload: " + json.dumps(payload))
 
     if not isinstance(payload, dict):
         msg = "invalid task format"
         print(f"error: {msg}")
         return f"Bad Request: {msg}", 400
-    
+
     slackmessenger = SlackMessenger(
-        token=os.environ.get('SLACKBOT_TOKEN'),
-        target = os.environ.get('SLACKBOT_TARGET'),
-        name='w2w-run-daily',
+        token=os.environ.get("SLACKBOT_TOKEN"),
+        target=os.environ.get("SLACKBOT_TARGET"),
+        name="w2w-run-daily",
     )
-    
-    today_str = payload['today']
-    
-    today = datetime.datetime.strptime(today_str,'%Y-%m-%d').replace(tzinfo=None)
-    
+
+    today_str = payload["today"]
+
+    today = datetime.datetime.strptime(today_str, "%Y-%m-%d").replace(tzinfo=None)
+
     # step 1-> refresh reservoir levels
     filled_datapts = refresh_reservoir_levels(today)
-    messenger.message(f'added {filled_datapts} data points')
-    
+    slackmessenger.message(f"added {filled_datapts} data points")
+
     # step 2-> rerun inference
-    
+
     # step 3 -> post to results table
-    
+
     # step 4 -> enqueue tomorrow
     enqueue_tomorrow(today)
-    messenger.message(f'enqueued {(today+timedelta(hours=24)).isoformat()}')
-
+    slackmessenger.message(f"enqueued {(today+timedelta(hours=24)).isoformat()}")
 
 
 def refresh_reservoir_levels(today):
-    
-    logger.info('getting UUIDs')
+
+    logger.info("getting UUIDs")
     client = BQClient()
     # get res uuids from tracking table
-    uuid_df = client.get_uuids().set_index('uuid')
-    
-    logger.info('Updating {len(uuid_df)} uuids')
-    
+    uuid_df = client.get_uuids().set_index("uuid")
+
+    logger.info("Updating {len(uuid_df)} uuids")
+
     update_data = []
     # for each uuids:
     for uuid, row in uuid_df.iterrows():
-        
+
         # run an updating script
-        update_data.append(client.update_reservoir_data(uuid,row['name'],today))
-        
+        update_data.append(client.update_reservoir_data(uuid, row["name"], today))
+
     return sum(update_data)
-        
+
+
 def enqueue_tomorrow(today):
-    
+
     tomorrow = today + timedelta(hours=24)
-    
+
     cfg = dict(
-        project= os.environ["project"],
-        queue= os.environ["queue"], # queue name
-        location= os.environ["location"], # queue
-        url= os.environ["url"], # service url
-        service_account= os.environ["service_account"], # service acct
+        project=os.environ["project"],
+        queue=os.environ["queue"],  # queue name
+        location=os.environ["location"],  # queue
+        url=os.environ["url"],  # service url
+        service_account=os.environ["service_account"],  # service acct
     )
-    
+
     task = create_task(
-        cfg=cfg, 
-        payload=dict(today=tomorrow.isoformat()[0:10]), 
-        task_name=tomorrow.isoformat()[0:10], 
-        delay=24*3600
+        cfg=cfg,
+        payload=dict(today=tomorrow.isoformat()[0:10]),
+        task_name=tomorrow.isoformat()[0:10],
+        delay=24 * 3600,
     )
-    
+
     deploy_task(cfg, task)
-    
-
-
-    
-    
