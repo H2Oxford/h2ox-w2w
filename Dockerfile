@@ -21,6 +21,8 @@ COPY . ./h2ox-w2w
 
 RUN echo $PWD
 
+RUN echo $(ls)
+
 
 RUN apt-get update
 RUN apt-get install -y python3-pip
