@@ -11,7 +11,7 @@ from datetime import timedelta
 from flask import Flask, request
 from loguru import logger
 
-from h2ox.w2w.reservoirs import BQClient
+from h2ox.w2w.reservoirs import BQClient, post_inference
 from h2ox.w2w.slackbot import SlackMessenger
 from h2ox.w2w.w2w_utils import create_task, deploy_task
 
@@ -102,15 +102,19 @@ def run_daily():
 
     # step 1-> refresh reservoir levels
     filled_datapts = refresh_reservoir_levels(today)
-    slackmessenger.message(f"added {filled_datapts} data points")
+    slackmessenger.message(f" W2W ::: added {filled_datapts} data points")
 
-    # step 2-> rerun inference
+    # step 2-> rerun inference and post results
+    basin_networks = json.loads(os.environ.get("BASIN_NETWORKS"))
+    url = os.environ.get("INFERENCE_URL_ROOT")
+    msg = post_inference(today, basin_networks, url)
+    slackmessenger.message(f"W2W ::: inference: {json.dumps(msg)}")
 
-    # step 3 -> post to results table
-
-    # step 4 -> enqueue tomorrow
+    # step 3 -> enqueue tomorrow
     enqueue_tomorrow(today)
-    slackmessenger.message(f"enqueued {(today+timedelta(hours=24)).isoformat()}")
+    slackmessenger.message(
+        f"W2W ::: enqueued {(today+timedelta(hours=24)).isoformat()}"
+    )
 
     return f"Ran day {today_str}", 200
 

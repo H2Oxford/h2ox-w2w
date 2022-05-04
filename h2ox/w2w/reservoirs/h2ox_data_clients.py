@@ -90,10 +90,18 @@ class BQClient:
 
         return df
 
-    def track_reservoir(self, uuid, name):
+    def track_reservoir(self, uuid, name, lake_wkt, upstream_wkt):
 
         errors = self.client.insert_rows_json(
-            self.tracking_table, [{"uuid": uuid, "name": name}]
+            self.tracking_table,
+            [
+                {
+                    "uuid": uuid,
+                    "name": name,
+                    "upstream_geom": upstream_wkt,
+                    "lake_geom": lake_wkt,
+                }
+            ],
         )
 
         self.check_errors(errors)
