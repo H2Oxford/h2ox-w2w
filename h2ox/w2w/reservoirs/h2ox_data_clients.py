@@ -202,6 +202,7 @@ class BQClient:
             # empty data! -> fill from start_dt
             # filled_data = self.fill_period(uuid, name, self.min_dt, today, sleep)
             logger.info(f"No data for uuid={uuid},name={name}")
+            filled_data = [0]
 
         else:
             # some data! -> fill from most recent
