@@ -189,6 +189,7 @@ class BQClient:
 
                 all_data = [len(df)]
             else:
+                logger.info(f"Status code: {status_code}, uuid={uuid},name={name}")
                 all_data = [0]
 
         return all_data
@@ -199,7 +200,8 @@ class BQClient:
 
         if pd.isna(max_dt):
             # empty data! -> fill from start_dt
-            filled_data = self.fill_period(uuid, name, self.min_dt, today, sleep)
+            # filled_data = self.fill_period(uuid, name, self.min_dt, today, sleep)
+            logger.info(f"No data for uuid={uuid},name={name}")
 
         else:
             # some data! -> fill from most recent

@@ -15,8 +15,9 @@ COPY ./main.py $APP_HOME/
 WORKDIR $APP_HOME
 
 # Copy local code to the container image.
-# __context__ to __workdir__ 
+# __context__ to __workdir__
 COPY . ./h2ox-w2w
+COPY ./data ./data
 # Install GDAL dependencies
 
 RUN echo $PWD
