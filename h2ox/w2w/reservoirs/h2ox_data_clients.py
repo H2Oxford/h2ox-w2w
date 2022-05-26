@@ -10,6 +10,25 @@ from loguru import logger
 from tqdm import tqdm
 
 
+def refresh_reservoir_levels(today):
+
+    logger.info("getting UUIDs")
+    client = BQClient()
+    # get res uuids from tracking table
+    uuid_df = client.get_uuids().set_index("uuid")
+
+    logger.info("Updating {len(uuid_df)} uuids")
+
+    update_data = []
+    # for each uuids:
+    for uuid, row in uuid_df.iterrows():
+
+        # run an updating script
+        update_data.append(client.update_reservoir_data(uuid, row["name"], today))
+
+    return sum(update_data)
+
+
 class WRISClient:
     def __init__(self):
         self.url = "http://wdo.indiawris.gov.in/api/reservoir/chart"

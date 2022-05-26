@@ -11,7 +11,7 @@ from datetime import timedelta
 from flask import Flask, request
 from loguru import logger
 
-from h2ox.w2w.reservoirs import BQClient, post_inference
+from h2ox.w2w.reservoirs import post_inference, refresh_reservoir_levels
 from h2ox.w2w.slackbot import SlackMessenger
 from h2ox.w2w.w2w_utils import create_task, deploy_task
 
@@ -90,11 +90,22 @@ def run_daily():
         print(f"error: {msg}")
         return f"Bad Request: {msg}", 400
 
-    slackmessenger = SlackMessenger(
-        token=os.environ.get("SLACKBOT_TOKEN"),
-        target=os.environ.get("SLACKBOT_TARGET"),
-        name="w2w-run-daily",
-    )
+    token = os.environ.get("SLACKBOT_TOKEN")
+    target = os.environ.get("SLACKBOT_TARGET")
+
+    if token is not None and target is not None:
+
+        slackmessenger = SlackMessenger(
+            token=token,
+            target=target,
+            name="w2w-run-daily",
+        )
+    else:
+        slackmessenger = None
+
+    requeue = os.environ.get("REQUEUE")
+    if requeue is not None:
+        requeue = requeue.lower() == "true"
 
     today_str = payload["today"]
 
@@ -102,40 +113,25 @@ def run_daily():
 
     # step 1-> refresh reservoir levels
     filled_datapts = refresh_reservoir_levels(today)
-    slackmessenger.message(f" W2W ::: added {filled_datapts} data points")
+    if slackmessenger is not None:
+        slackmessenger.message(f" W2W ::: added {filled_datapts} data points")
 
     # step 2-> rerun inference and post results
     basin_networks = json.loads(os.environ.get("BASIN_NETWORKS"))
     url = os.environ.get("INFERENCE_URL_ROOT")
     msg = post_inference(today, basin_networks, url)
-    slackmessenger.message(f"W2W ::: inference: {json.dumps(msg)}")
+    if slackmessenger is not None:
+        slackmessenger.message(f"W2W ::: inference: {json.dumps(msg)}")
 
     # step 3 -> enqueue tomorrow
-    enqueue_tomorrow(today)
-    slackmessenger.message(
-        f"W2W ::: enqueued {(today+timedelta(hours=24)).isoformat()}"
-    )
+    if requeue:
+        enqueue_tomorrow(today)
+        if slackmessenger is not None:
+            slackmessenger.message(
+                f"W2W ::: enqueued {(today+timedelta(hours=24)).isoformat()}"
+            )
 
     return f"Ran day {today_str}", 200
-
-
-def refresh_reservoir_levels(today):
-
-    logger.info("getting UUIDs")
-    client = BQClient()
-    # get res uuids from tracking table
-    uuid_df = client.get_uuids().set_index("uuid")
-
-    logger.info("Updating {len(uuid_df)} uuids")
-
-    update_data = []
-    # for each uuids:
-    for uuid, row in uuid_df.iterrows():
-
-        # run an updating script
-        update_data.append(client.update_reservoir_data(uuid, row["name"], today))
-
-    return sum(update_data)
 
 
 def enqueue_tomorrow(today):
