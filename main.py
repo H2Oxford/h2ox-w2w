@@ -103,9 +103,7 @@ def run_daily():
     else:
         slackmessenger = None
 
-    requeue = os.environ.get("REQUEUE")
-    if requeue is not None:
-        requeue = requeue.lower() == "true"
+    requeue = str(os.environ.get("REQUEUE")).lower() == "true"
 
     today_str = payload["today"]
 
