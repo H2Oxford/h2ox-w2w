@@ -8,6 +8,7 @@ import requests
 import xarray as xr
 from google.cloud import bigquery
 from loguru import logger
+from scipy.interpolate import interp1d
 
 from h2ox.w2w.data_units import SynthTrigDoY
 
@@ -213,7 +214,7 @@ class BQInfClient:
 
         doy_arr = doy_unit.build(
             start_datetime=pd.to_datetime(run_date - timedelta(days=91), utc=True),
-            end_datetime=pd.to_datetime(today + timedelta(days=16), utc=True),
+            end_datetime=pd.to_datetime(run_date + timedelta(days=91), utc=True),
             sin_or_cos=["sin", "cos"],
             site_mapper=dict(zip(sites, sites)),
             start_step=0,
@@ -233,6 +234,31 @@ class BQInfClient:
         self.check_errors(errors)
 
         return True
+    
+def interp_levels(data):
+    
+    for date_key in data.keys():
+        for site_key in data[date_key].keys():
+            arr = np.array(data[date_key][site_key]['y']['targets_WATER_VOLUME'])
+            x = np.arange(arr.shape[0])[~np.isnan(arr)]
+            full_x = np.arange(arr.shape[0])
+            y = arr[~np.isnan(arr)]
+
+            f = interp1d(
+                    x=x, 
+                    y=y, 
+                    kind='linear', 
+                    axis=- 1, 
+                    copy=True, 
+                    bounds_error=None, 
+                    fill_value='extrapolate', 
+                    assume_sorted=False
+            )
+
+            y_interp = f(full_x)
+            data[date_key][site_key]['y']['targets_WATER_VOLUME'] = y_interp.tolist()
+            
+    return data
 
 
 def xr_to_sample(ds, cfg, ini_date, run_date, sites):
@@ -294,6 +320,8 @@ def xr_to_sample(ds, cfg, ini_date, run_date, sites):
     combined_dict = combine_data(hist_dict, target_dict, forecast_dict, future_dict)
 
     sample_data = {run_date.isoformat()[0:10]: combined_dict}
+    
+    sample_data = interp_levels(sample_data)
 
     return sample_data
 

@@ -17,7 +17,7 @@ def refresh_reservoir_levels(today):
     # get res uuids from tracking table
     uuid_df = client.get_uuids().set_index("uuid")
 
-    logger.info("Updating {len(uuid_df)} uuids")
+    logger.info(f"Updating {len(uuid_df)} uuids")
 
     update_data = []
     # for each uuids:
