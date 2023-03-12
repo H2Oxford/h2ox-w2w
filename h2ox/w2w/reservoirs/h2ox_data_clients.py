@@ -4,10 +4,12 @@ import time
 from math import ceil
 
 import pandas as pd
+import numpy as np
 import requests
 from google.cloud import bigquery
 from loguru import logger
 from tqdm import tqdm
+import os
 
 
 def refresh_reservoir_levels(today):
@@ -32,14 +34,66 @@ def refresh_reservoir_levels(today):
 class WRISClient:
     def __init__(self):
         self.url = "http://wdo.indiawris.gov.in/api/reservoir/chart"
+        self.new_url = "https://indiawris.gov.in/getReservoirDateChartData"
 
         self.data_columns = {
             "Current Year Level": "WATER_LEVEL",
             "Current Year Storage": "WATER_VOLUME",
             "Full Reservoir Level": "FULL_WATER_LEVEL",
         }
+        
+    def get_reservoir_data_direct(
+        self,
+        sdate: datetime,
+        edate: datetime,
+        uuid: str,
+        fail_open: bool=True
+    ):
+        
+        Q = f"""
+            select reservoir_name, reservoir_code, to_char(date, 'yyyy-mm-dd'), current_live_storage 
+            from public.reservoir_data 
+            where reservoir_code = '{uuid}' 
+            and current_live_storage is not null 
+            and to_char(date, 'yyyy-mm-dd') between '{sdate.isoformat()[0:10]}' and '{edate.isoformat()[0:10]}'
+        """
+        
+        payload = {"stnVal":{"qry":Q}}
+        
+        response = requests.post(self.new_url, verify=False, json=payload)
 
-    def get_reservoir_data(self, sdate, edate, uuid):
+        if response.status_code == 200:
+            data = response.json()
+            
+            df = pd.DataFrame(
+                data = response.json(), 
+                columns=[
+                    'RESERVOIR_NAME',
+                    'RESERVOIR_UUID',
+                    'DATETIME',
+                    'WATER_VOLUME'
+                ]
+            ).sort_values('DATETIME')
+            
+            df = df.set_index('DATETIME')
+            df.index = pd.to_datetime(df.index)
+            df['WATER_LEVEL'] = None
+            df['FULL_WATER_LEVEL'] = None
+            
+            return df, response.status_code
+            
+            
+        elif response.status_code!=200 and not fail_open:
+            print (response.status_code, self.url, payload)
+            response.raise_for_status()
+
+        else:
+            return None, response.status_code
+            
+        
+        
+
+    def get_reservoir_data(self, sdate, edate, uuid, fail_open:bool=True):
 
         headers = {
             "Content-Type": "application/json",
@@ -73,6 +127,10 @@ class WRISClient:
             ]
 
             return df, response.status_code
+        
+        elif response.status_code!=200 and not fail_open:
+            print (response.status_code, self.url, payload)
+            response.raise_for_status()
 
         else:
             return None, response.status_code
@@ -161,14 +219,15 @@ class BQClient:
 
             all_data = []
 
-            for ii in tqdm(range(n_calls)):
+            for ii in range(n_calls):
 
-                df, status_code = wris_client.get_reservoir_data(
+                df, status_code = wris_client.get_reservoir_data_direct(
                     sdate=start_dt + datetime.timedelta(days=30 * ii),
                     edate=min(
                         start_dt + datetime.timedelta(days=30 * (ii + 1)), end_dt
                     ),
                     uuid=uuid,
+                    fail_open=(os.getenv("FAIL_OPEN", 'False').lower() in ('true', '1', 't'))
                 )
 
                 if status_code == 200:
@@ -185,6 +244,7 @@ class BQClient:
                         time.sleep(sleep)
 
                     all_data.append(len(df))
+                    
                 else:
                     all_data.append(0)
 

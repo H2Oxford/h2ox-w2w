@@ -1,5 +1,7 @@
 import os
 from datetime import datetime
+import warnings
+warnings.filterwarnings("ignore")
 
 from h2ox.w2w.reservoirs import refresh_reservoir_levels
 from h2ox.w2w.slackbot import SlackMessenger
