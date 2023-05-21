@@ -26,7 +26,9 @@ def refresh_reservoir_levels(today):
     for uuid, row in uuid_df.iterrows():
 
         # run an updating script
-        update_data.append(client.update_reservoir_data(uuid, row["name"], today))
+        new_rows = client.update_reservoir_data(uuid, row["name"], today)
+        logger.info(f'{uuid} - {new_rows} new rows')
+        update_data.append(new_rows)
 
     return sum(update_data)
 
@@ -133,6 +135,7 @@ class WRISClient:
             response.raise_for_status()
 
         else:
+            print(response.text)
             return None, response.status_code
 
 
@@ -238,22 +241,28 @@ class BQClient:
                     df.index = df.index.strftime("%Y-%m-%dT%H:%M:%S.%f")
 
                     # write to table
-                    self.push_reservoir_data(df)
+                    if len(df)>0:
+                        self.push_reservoir_data(df)
 
-                    if sleep is not None:
-                        time.sleep(sleep)
+                        if sleep is not None:
+                            time.sleep(sleep)
 
-                    all_data.append(len(df))
+                        all_data.append(len(df))
                     
+                    else:
+                        all_data.append(0)
                 else:
-                    all_data.append(0)
+                    print ('ERROR',status_code)
 
         else:
 
             logger.info(f"Filling data for {uuid}, 1 api call")
 
-            df, status_code = wris_client.get_reservoir_data(
-                sdate=start_dt, edate=end_dt, uuid=uuid
+            df, status_code = wris_client.get_reservoir_data_direct(
+                sdate=start_dt, 
+                edate=end_dt, 
+                uuid=uuid, 
+                fail_open=(os.getenv("FAIL_OPEN", 'False').lower() in ('true', '1', 't'))
             )
 
             if status_code == 200:
@@ -264,9 +273,12 @@ class BQClient:
                 df.index = df.index.strftime("%Y-%m-%dT%H:%M:%S.%f")
 
                 # write to table
-                self.push_reservoir_data(df)
+                if len(df)>0:
+                    self.push_reservoir_data(df)
 
-                all_data = [len(df)]
+                    all_data = [len(df)]
+                else:
+                    all_data = [0]
             else:
                 logger.info(f"Status code: {status_code}, uuid={uuid},name={name}")
                 all_data = [0]
